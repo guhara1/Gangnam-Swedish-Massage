@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://www.gangnam-massage.example.com/sitemap.xml
+Sitemap: https://gangnam-swedish-massage.pages.dev/sitemap.xml
