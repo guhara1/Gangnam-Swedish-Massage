@@ -1,0 +1,26 @@
+name: IndexNow 자동 색인 통보
+
+# main 브랜치에 푸시되면(= Cloudflare Pages 재배포) 잠시 뒤 IndexNow로
+# 사이트맵 전체를 Bing·네이버·Yandex에 통보한다. 별도 시크릿 불필요.
+# 배포 브랜치가 다르면 아래 branches 값을 바꾸세요.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'content/**'
+      - 'build.py'
+      - 'sitemap.xml'
+  workflow_dispatch:
+
+jobs:
+  indexnow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: 배포 반영 대기
+        run: sleep 60
+      - name: IndexNow 통보 (sitemap 전체)
+        run: python3 scripts/indexnow_submit.py

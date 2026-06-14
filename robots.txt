@@ -1,4 +1,8 @@
 User-agent: *
 Allow: /
 
+User-agent: Yeti
+Allow: /
+
 Sitemap: https://gangnam-swedish-massage.pages.dev/sitemap.xml
+Sitemap: https://gangnam-swedish-massage.pages.dev/rss.xml

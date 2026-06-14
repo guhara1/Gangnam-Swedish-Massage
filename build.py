@@ -8,16 +8,19 @@ content/ 패키지의 페이지 정의를 읽어 정적 HTML을 생성한다.
   - sitemap.xml 에는 index 허용 페이지만 포함
   - 지역+역+테마 조합 경로는 생성 자체가 불가능한 구조
 """
+import datetime
 import html
 import os
 import re
 import shutil
 import sys
+from email.utils import format_datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from content import PAGES
-from content.site import (BASE_URL, BRAND, NAV, PHONE, PHONE_DISPLAY)
+from content.site import (BASE_URL, BRAND, INDEXNOW_KEY, NAV, PHONE,
+                         PHONE_DISPLAY)
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 MIN_INDEX_CHARS = 2000
@@ -144,6 +147,7 @@ def render_page(page: dict) -> str:
 <meta name="description" content="{desc}">
 {robots}
 <link rel="canonical" href="{canonical}">
+<link rel="alternate" type="application/rss+xml" title="{BRAND} 매거진" href="{BASE_URL.rstrip('/')}/rss.xml">
 <meta property="og:type" content="website">
 <meta property="og:title" content="{title}">
 <meta property="og:description" content="{desc}">
@@ -250,6 +254,49 @@ def render_page(page: dict) -> str:
 """
 
 
+def build_rss() -> None:
+    """매거진 글을 RSS 2.0 피드로 출력한다 (rss.xml)."""
+    base = BASE_URL.rstrip("/")
+    items = []
+    for page in PAGES:
+        path = page["path"]
+        if not (path.startswith("magazine/") and path != "magazine/"):
+            continue
+        m = re.search(r'"datePublished":\s*"([^"]+)"', page.get("extra_head", "") or "")
+        date = m.group(1) if m else datetime.date.today().isoformat()
+        try:
+            dt = datetime.datetime.strptime(date, "%Y-%m-%d").replace(
+                tzinfo=datetime.timezone(datetime.timedelta(hours=9)))
+            pub = format_datetime(dt)
+        except ValueError:
+            pub = format_datetime(datetime.datetime.now(datetime.timezone.utc))
+        loc = f"{base}/{path}"
+        items.append((date, f"""  <item>
+    <title>{html.escape(page['title'])}</title>
+    <link>{loc}</link>
+    <guid isPermaLink="true">{loc}</guid>
+    <description>{html.escape(page['desc'])}</description>
+    <pubDate>{pub}</pubDate>
+  </item>"""))
+    items.sort(key=lambda x: x[0], reverse=True)
+    now = format_datetime(datetime.datetime.now(datetime.timezone.utc))
+    body = "\n".join(i for _, i in items)
+    with open(os.path.join(ROOT, "rss.xml"), "w", encoding="utf-8") as f:
+        f.write(f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+  <title>{html.escape(BRAND)} 매거진</title>
+  <link>{base}/magazine/</link>
+  <atom:link href="{base}/rss.xml" rel="self" type="application/rss+xml"/>
+  <description>마사지·휴식·컨디션 관리 가이드</description>
+  <language>ko</language>
+  <lastBuildDate>{now}</lastBuildDate>
+{body}
+</channel>
+</rss>
+""")
+
+
 def build() -> None:
     report = []
     sitemap_urls = []
@@ -279,12 +326,23 @@ def build() -> None:
             f"{urls}\n</urlset>\n"
         )
 
-    # robots.txt
+    # robots.txt — 전 봇 허용 + 사이트맵 위치 명시(구글·네이버 Yeti 공통)
     with open(os.path.join(ROOT, "robots.txt"), "w", encoding="utf-8") as f:
         f.write(
-            "User-agent: *\nAllow: /\n\n"
+            "User-agent: *\n"
+            "Allow: /\n\n"
+            "User-agent: Yeti\n"          # 네이버 검색 봇
+            "Allow: /\n\n"
             f"Sitemap: {BASE_URL.rstrip('/')}/sitemap.xml\n"
+            f"Sitemap: {BASE_URL.rstrip('/')}/rss.xml\n"  # RSS 피드 = 신규 글 색인 신호
         )
+
+    # rss.xml — 매거진 글 피드 (신규 글 발행 시 색인 신호)
+    build_rss()
+
+    # IndexNow 키 파일 — Bing·네이버·Yandex 즉시 색인 통보용
+    with open(os.path.join(ROOT, f"{INDEXNOW_KEY}.txt"), "w", encoding="utf-8") as f:
+        f.write(INDEXNOW_KEY + "\n")
 
     # .nojekyll (GitHub Pages)
     open(os.path.join(ROOT, ".nojekyll"), "w").close()
