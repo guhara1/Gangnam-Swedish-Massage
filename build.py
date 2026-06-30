@@ -10,6 +10,7 @@ content/ 패키지의 페이지 정의를 읽어 정적 HTML을 생성한다.
 """
 import datetime
 import html
+import json
 import os
 import re
 import shutil
@@ -19,11 +20,291 @@ from email.utils import format_datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from content import PAGES
-from content.site import (BASE_URL, BRAND, INDEXNOW_KEY, NAV, PHONE,
-                         PHONE_DISPLAY)
+from content.site import (BASE_URL, BRAND, INDEXNOW_KEY, NAV, OFFERS, PHONE,
+                         PHONE_DISPLAY, RATING_VALUE, REVIEW_COUNT)
+from content.reviews_data import REVIEWS
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 MIN_INDEX_CHARS = 2000
+ORIGIN = BASE_URL.rstrip("/")
+
+# 본문에서 Service(AggregateRating·Offer) 스키마를 붙일 페이지 유형.
+SERVICE_KINDS = {
+    "home", "area", "station", "theme",
+    "area_hub", "station_hub", "theme_hub", "massage", "courses",
+}
+
+
+def page_kind(path: str) -> str:
+    p = path.rstrip("/")
+    if p == "":
+        return "home"
+    if p == "gangnam":
+        return "area_hub"
+    if p == "gangnam/stations":
+        return "station_hub"
+    if p == "themes":
+        return "theme_hub"
+    if p == "magazine":
+        return "magazine_hub"
+    if p == "massage":
+        return "massage"
+    if p == "courses":
+        return "courses"
+    if p == "reviews":
+        return "reviews"
+    if p.startswith("gangnam/") and p.endswith("-station-chuljangmassage"):
+        return "station"
+    if p.startswith("gangnam/") and p.endswith("-dong-chuljangmassage"):
+        return "area"
+    if p.startswith("themes/"):
+        return "theme"
+    if p.startswith("magazine/"):
+        return "article"
+    return "info"
+
+
+# 사이트맵 우선순위(검색 색인 신호)
+PRIORITY = {
+    "home": "1.0", "area_hub": "0.9", "station_hub": "0.9", "theme_hub": "0.9",
+    "magazine_hub": "0.8", "area": "0.8", "station": "0.8", "theme": "0.8",
+    "massage": "0.8", "courses": "0.7", "reviews": "0.7", "article": "0.7",
+}
+
+
+# ── 구조화 데이터(JSON-LD) ──────────────────────────────────────────
+def _ld(obj) -> str:
+    return ('<script type="application/ld+json">\n'
+            + json.dumps(obj, ensure_ascii=False, indent=2)
+            + "\n</script>\n")
+
+
+def _agg_rating() -> dict:
+    return {
+        "@type": "AggregateRating",
+        "ratingValue": RATING_VALUE,
+        "reviewCount": REVIEW_COUNT,
+        "bestRating": "5",
+        "worstRating": "1",
+    }
+
+
+def _offer_catalog() -> dict:
+    items = []
+    for name, price, desc in OFFERS:
+        items.append({
+            "@type": "Offer",
+            "name": name,
+            "price": price,
+            "priceCurrency": "KRW",
+            "availability": "https://schema.org/InStock",
+            "itemOffered": {
+                "@type": "Service",
+                "name": f"{name} 출장마사지·홈타이",
+                "description": desc,
+            },
+        })
+    return {"@type": "OfferCatalog", "name": "코스별 기본 요금", "itemListElement": items}
+
+
+def extract_faq(body: str):
+    """본문에 노출된 .faq-item(h3 질문 + p 답변)을 뽑아 FAQ 스키마용으로 정리한다."""
+    out = []
+    pat = re.compile(
+        r'<div class="faq-item">\s*<h3>(.*?)</h3>\s*<p>(.*?)</p>', re.S)
+    for q, a in pat.findall(body):
+        q = html.unescape(re.sub(r"<[^>]+>", "", q)).strip()
+        a = html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", a))).strip()
+        if q and a:
+            out.append((q, a))
+    return out
+
+
+def _breadcrumb_node(page, canonical):
+    crumbs = page.get("breadcrumb") or []
+    if not crumbs:
+        return None
+    items = [{"@type": "ListItem", "position": 1, "name": "홈", "item": ORIGIN + "/"}]
+    pos = 2
+    for label, href in crumbs:
+        items.append({
+            "@type": "ListItem",
+            "position": pos,
+            "name": label,
+            "item": ORIGIN + href if href else canonical,
+        })
+        pos += 1
+    return {"@type": "BreadcrumbList", "@id": canonical + "#breadcrumb",
+            "itemListElement": items}
+
+
+def _service_node(page, canonical):
+    return {
+        "@type": "Service",
+        "@id": canonical + "#service",
+        "name": page["h1"],
+        "serviceType": "출장마사지·홈타이",
+        "url": canonical,
+        "provider": {"@id": ORIGIN + "/#org"},
+        "areaServed": {"@type": "AdministrativeArea", "name": "서울특별시 강남구"},
+        "availableChannel": {
+            "@type": "ServiceChannel",
+            "servicePhone": {"@type": "ContactPoint", "telephone": PHONE,
+                             "contactType": "reservations", "areaServed": "KR",
+                             "availableLanguage": ["ko", "en"]},
+        },
+        "aggregateRating": _agg_rating(),
+        "hasOfferCatalog": _offer_catalog(),
+    }
+
+
+def _reviews_node(canonical):
+    review_list = [{
+        "@type": "Review",
+        "author": {"@type": "Person", "name": r["name"]},
+        "datePublished": r["date"],
+        "reviewRating": {"@type": "Rating", "ratingValue": str(r["rating"]),
+                         "bestRating": "5", "worstRating": "1"},
+        "reviewBody": r["text"],
+        "itemReviewed": {"@id": ORIGIN + "/#org"},
+    } for r in REVIEWS]
+    return {
+        "@type": "Service",
+        "@id": canonical + "#service",
+        "name": f"{BRAND} 강남 출장마사지·홈타이",
+        "serviceType": "출장마사지·홈타이",
+        "provider": {"@id": ORIGIN + "/#org"},
+        "areaServed": {"@type": "AdministrativeArea", "name": "서울특별시 강남구"},
+        "aggregateRating": _agg_rating(),
+        "review": review_list,
+    }
+
+
+def build_schema(page, canonical, body) -> str:
+    kind = page_kind(page["path"])
+    org = {
+        "@type": "Organization",
+        "@id": ORIGIN + "/#org",
+        "name": BRAND,
+        "url": ORIGIN + "/",
+        "telephone": PHONE,
+        "image": ORIGIN + "/assets/og-image.png",
+        "logo": {"@type": "ImageObject", "url": ORIGIN + "/assets/icon-512.png"},
+        "areaServed": {"@type": "AdministrativeArea", "name": "서울특별시 강남구"},
+        "knowsLanguage": ["ko", "en"],
+    }
+    website = {
+        "@type": "WebSite", "@id": ORIGIN + "/#website", "url": ORIGIN + "/",
+        "name": BRAND, "inLanguage": "ko-KR", "publisher": {"@id": ORIGIN + "/#org"},
+    }
+    wp_type = "CollectionPage" if kind.endswith("_hub") else "WebPage"
+    webpage = {
+        "@type": wp_type, "@id": canonical + "#webpage", "url": canonical,
+        "name": page["title"], "description": page["desc"], "inLanguage": "ko-KR",
+        "isPartOf": {"@id": ORIGIN + "/#website"}, "about": {"@id": ORIGIN + "/#org"},
+        "primaryImageOfPage": ORIGIN + "/assets/og-image.png",
+    }
+    graph = [org, website, webpage]
+
+    bc = _breadcrumb_node(page, canonical)
+    if bc:
+        webpage["breadcrumb"] = {"@id": bc["@id"]}
+        graph.append(bc)
+
+    faqs = extract_faq(body)
+    if faqs:
+        graph.append({
+            "@type": "FAQPage", "@id": canonical + "#faq",
+            "mainEntity": [{
+                "@type": "Question", "name": q,
+                "acceptedAnswer": {"@type": "Answer", "text": a},
+            } for q, a in faqs],
+        })
+
+    if kind == "reviews":
+        graph.append(_reviews_node(canonical))
+    elif kind in SERVICE_KINDS:
+        graph.append(_service_node(page, canonical))
+
+    return _ld({"@context": "https://schema.org", "@graph": graph})
+
+
+# ── 내부 링크 강화(롱테일 관련 안내 블록) ──────────────────────────
+_REL_SERVICE = [
+    ("/themes/swedish/", "강남 스웨디시 마사지 안내"),
+    ("/themes/thai/", "홈타이·타이마사지 안내"),
+    ("/themes/aroma/", "아로마테라피 마사지 안내"),
+    ("/themes/couple/", "커플 마사지 동시 예약"),
+    ("/themes/24hours/", "24시간 심야 출장마사지"),
+    ("/courses/", "코스별 요금·시간 안내"),
+    ("/reservation/", "예약 방법과 가능 시간"),
+    ("/reviews/", "실제 이용 후기 모음"),
+]
+_REL_AREA_EXTRA = [
+    ("/gangnam/", "강남구 지역별 출장마사지"),
+    ("/gangnam/stations/", "지하철역별 방문 안내"),
+]
+_REL_THEME = [
+    ("/gangnam/", "강남구 지역별 출장마사지"),
+    ("/gangnam/stations/", "지하철역별 방문 안내"),
+    ("/massage/", "강남 출장마사지 이용 절차"),
+    ("/courses/", "코스별 요금·시간 안내"),
+    ("/reservation/", "예약 방법과 가능 시간"),
+    ("/reviews/", "실제 이용 후기 모음"),
+    ("/themes/", "전체 테마 한눈에 보기"),
+]
+_REL_HOME = [
+    ("/gangnam/gangnam-station-chuljangmassage/", "강남역 출장마사지"),
+    ("/gangnam/yeoksam-dong-chuljangmassage/", "역삼동 홈타이"),
+    ("/gangnam/samseong-dong-chuljangmassage/", "삼성동 출장마사지"),
+    ("/gangnam/apgujeong-dong-chuljangmassage/", "압구정동 홈타이"),
+    ("/themes/swedish/", "강남 스웨디시 마사지"),
+    ("/themes/thai/", "강남 홈타이(타이마사지)"),
+    ("/themes/aroma/", "강남 아로마 마사지"),
+    ("/themes/couple/", "강남 커플 마사지"),
+    ("/themes/24hours/", "24시간 심야 마사지"),
+    ("/reviews/", "이용 후기 모음"),
+]
+_REL_GENERAL = [
+    ("/massage/", "강남 출장마사지 이용 절차"),
+    ("/gangnam/", "강남구 지역별 출장마사지"),
+    ("/gangnam/stations/", "지하철역별 방문 안내"),
+    ("/themes/", "테마별 관리 안내"),
+    ("/courses/", "코스별 요금·시간 안내"),
+    ("/reservation/", "예약 방법과 가능 시간"),
+    ("/reviews/", "실제 이용 후기 모음"),
+    ("/guide/", "처음 이용 가이드"),
+]
+
+
+def related_links(path: str) -> str:
+    kind = page_kind(path)
+    if kind in ("area", "station"):
+        links = _REL_SERVICE + _REL_AREA_EXTRA
+    elif kind in ("theme", "theme_hub"):
+        links = _REL_THEME
+    elif kind == "home":
+        links = _REL_HOME
+    elif kind in ("area_hub", "station_hub", "massage", "courses",
+                  "reviews", "info", "magazine_hub"):
+        links = _REL_GENERAL
+    else:
+        return ""
+    self_href = "/" + path
+    seen, items = set(), []
+    for href, label in links:
+        if href == self_href or href in seen:
+            continue
+        seen.add(href)
+        items.append(f'<li><a href="{href}">{label}</a></li>')
+    if not items:
+        return ""
+    return (
+        '<section class="related" aria-label="함께 보면 좋은 안내">'
+        "<h2>함께 보면 좋은 안내</h2>"
+        '<ul class="card-grid related-grid">' + "".join(items) + "</ul>"
+        "</section>"
+    )
 
 
 def text_length(body_html: str) -> int:
@@ -126,6 +407,19 @@ def render_page(page: dict) -> str:
     )
     canonical = BASE_URL.rstrip("/") + "/" + path
 
+    # 구조화 데이터 — 본문(노출 FAQ·후기)을 읽어 전 페이지 공통 생성.
+    schema_html = build_schema(page, canonical, body)
+
+    # 내부 링크 강화 — 관련 안내 블록을 본문 말미(CTA 앞)에 삽입한다.
+    rel = related_links(path)
+    if rel:
+        marker = '<section class="cta">'
+        idx = body.rfind(marker)
+        if idx != -1:
+            body = body[:idx] + rel + body[idx:]
+        else:
+            body = body + rel
+
     # 히어로가 있는 페이지(메인)는 H1을 히어로 안에서 출력한다.
     if hero:
         page_head = hero
@@ -167,7 +461,7 @@ def render_page(page: dict) -> str:
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/style.css">
-{extra_head}</head>
+{extra_head}{schema_html}</head>
 <body>
 <header class="site-header">
   <div class="header-accent" aria-hidden="true"></div>
@@ -299,7 +593,8 @@ def build_rss() -> None:
 
 def build() -> None:
     report = []
-    sitemap_urls = []
+    sitemap_entries = []
+    today = datetime.date.today().isoformat()
 
     for page in PAGES:
         path = page["path"]  # "" 또는 "gangnam/sinsa-dong-chuljangmassage/" 형태
@@ -312,12 +607,19 @@ def build() -> None:
         chars = text_length(page["body"])
         noindex = page.get("noindex", False) or chars < MIN_INDEX_CHARS
         if not noindex:
-            sitemap_urls.append(BASE_URL.rstrip("/") + "/" + path)
+            kind = page_kind(path)
+            sitemap_entries.append((
+                BASE_URL.rstrip("/") + "/" + path,
+                PRIORITY.get(kind, "0.6"),
+                "daily" if kind in ("home", "magazine_hub", "reviews") else "weekly",
+            ))
         report.append((path or "/", chars, "noindex" if noindex else "index"))
 
-    # sitemap.xml
+    # sitemap.xml — lastmod·changefreq·priority 로 색인 우선순위 신호 강화
     urls = "\n".join(
-        f"  <url><loc>{u}</loc></url>" for u in sitemap_urls
+        f"  <url><loc>{u}</loc><lastmod>{today}</lastmod>"
+        f"<changefreq>{cf}</changefreq><priority>{pr}</priority></url>"
+        for u, pr, cf in sitemap_entries
     )
     with open(os.path.join(ROOT, "sitemap.xml"), "w", encoding="utf-8") as f:
         f.write(
@@ -326,12 +628,16 @@ def build() -> None:
             f"{urls}\n</urlset>\n"
         )
 
-    # robots.txt — 전 봇 허용 + 사이트맵 위치 명시(구글·네이버 Yeti 공통)
+    # robots.txt — 전 봇 허용 + 주요 검색봇 명시 + 사이트맵 위치(구글·네이버·빙 공통)
     with open(os.path.join(ROOT, "robots.txt"), "w", encoding="utf-8") as f:
         f.write(
             "User-agent: *\n"
             "Allow: /\n\n"
             "User-agent: Yeti\n"          # 네이버 검색 봇
+            "Allow: /\n\n"
+            "User-agent: Googlebot\n"     # 구글
+            "Allow: /\n\n"
+            "User-agent: Bingbot\n"       # 빙(IndexNow 연계)
             "Allow: /\n\n"
             f"Sitemap: {BASE_URL.rstrip('/')}/sitemap.xml\n"
             f"Sitemap: {BASE_URL.rstrip('/')}/rss.xml\n"  # RSS 피드 = 신규 글 색인 신호
@@ -352,7 +658,7 @@ def build() -> None:
     for p, c, r in sorted(report):
         flag = "" if (r == "noindex" or MIN_INDEX_CHARS <= c <= 2500) else "  ⚠"
         print(f"{p.ljust(width)}  {str(c).rjust(5)}  {r}{flag}")
-    print(f"\n{len(report)} pages built, {len(sitemap_urls)} in sitemap.")
+    print(f"\n{len(report)} pages built, {len(sitemap_entries)} in sitemap.")
 
 
 if __name__ == "__main__":

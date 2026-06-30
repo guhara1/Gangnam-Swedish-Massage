@@ -1,79 +1,12 @@
 # 메인 페이지 — 강남구 전체를 안내하고 행정동·역·테마 상세 페이지로 연결한다.
 # 실제 오프라인 사업장 주소가 없으므로 LocalBusiness 계열 Schema는 쓰지 않고
 # WebPage + Organization + FAQPage 만 사용한다.
-from .site import BASE_URL, BRAND, PHONE, PHONE_DISPLAY
+from .site import BASE_URL, BRAND, PHONE, PHONE_DISPLAY, NAVER_VERIFY
 from .pricing import PRICING
 
-_JSONLD = f"""<meta name="naver-site-verification" content="19ad8c6024a16da36f507ec74b89eb04256698d8" />
-<script type="application/ld+json">
-{{
-  "@context": "https://schema.org",
-  "@type": "WebPage",
-  "name": "강남 출장마사지·강남구 홈타이 지역별 예약 안내",
-  "url": "{BASE_URL}/",
-  "description": "강남 출장마사지·홈타이 예약 전 행정동, 역세권, 이용 기준을 정리한 안내 페이지",
-  "inLanguage": "ko-KR",
-  "publisher": {{
-    "@type": "Organization",
-    "name": "{BRAND}",
-    "url": "{BASE_URL}/",
-    "telephone": "{PHONE}",
-    "areaServed": {{
-      "@type": "AdministrativeArea",
-      "name": "서울특별시 강남구"
-    }}
-  }}
-}}
-</script>
-<script type="application/ld+json">
-{{
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": [
-    {{
-      "@type": "Question",
-      "name": "강남구 전지역 방문이 가능한가요?",
-      "acceptedAnswer": {{
-        "@type": "Answer",
-        "text": "예약 시간, 정확한 위치, 배정 상황에 따라 가능 여부가 달라집니다. 지역별 안내에서 신사동, 압구정동, 청담동, 논현동, 삼성동, 역삼동, 대치동, 도곡동, 개포동, 일원동, 수서동, 세곡동 기준으로 확인할 수 있습니다."
-      }}
-    }},
-    {{
-      "@type": "Question",
-      "name": "강남역이나 선릉역 근처도 가능한가요?",
-      "acceptedAnswer": {{
-        "@type": "Answer",
-        "text": "주요 역세권은 역 상세 페이지에서 주변 생활권과 함께 안내합니다. 정확한 가능 여부는 예약 시 위치를 기준으로 확인합니다."
-      }}
-    }},
-    {{
-      "@type": "Question",
-      "name": "역삼1동과 역삼2동은 왜 따로 없나요?",
-      "acceptedAnswer": {{
-        "@type": "Answer",
-        "text": "역삼1·2동, 삼성1·2동, 개포1~4동처럼 번호로 나뉜 동도 역삼동·삼성동·개포동 안내에서 함께 다룹니다. 어느 동에 계셔도 같은 기준으로 방문해 드립니다."
-      }}
-    }},
-    {{
-      "@type": "Question",
-      "name": "당일 예약도 가능한가요?",
-      "acceptedAnswer": {{
-        "@type": "Answer",
-        "text": "가능할 수 있지만 저녁 시간대와 주말은 문의가 많을 수 있어 사전 예약을 권장합니다."
-      }}
-    }},
-    {{
-      "@type": "Question",
-      "name": "홈타이는 출장마사지와 무엇이 다른가요?",
-      "acceptedAnswer": {{
-        "@type": "Answer",
-        "text": "홈타이는 집에서 받는 타이마사지를 가리키는 말로 출장마사지의 대표 형태입니다. 오일 없이 편한 옷차림으로 받는 지압·스트레칭 구성이라 처음 이용하는 분도 부담이 적습니다."
-      }}
-    }}
-  ]
-}}
-</script>
-"""
+# WebPage·FAQPage·Service 등 구조화 데이터는 build.py 에서 본문을 읽어 전 페이지 공통으로
+# 생성한다. 메인은 검색엔진 소유확인 메타만 둔다.
+_JSONLD = f'<meta name="naver-site-verification" content="{NAVER_VERIFY}" />\n'
 
 _HERO = f"""<section class="hero">
   <div class="hero-inner">

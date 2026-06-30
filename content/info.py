@@ -1,6 +1,45 @@
 # 안내성 페이지 — 출장마사지 허브, 코스, 예약, 가이드, 후기, 고객센터, 약관.
 # 하위 메뉴 항목은 별도 페이지 대신 앵커 섹션으로 운영해 얇은 페이지를 만들지 않는다.
+import html as _html
+
 from .site import BRAND, PHONE, PHONE_DISPLAY
+from .reviews_data import REVIEWS, RATING_VALUE
+
+
+def _stars(n):
+    return ('<span class="rv-stars" aria-label="별점 %d점">' % n
+            + "★" * n + "☆" * (5 - n) + "</span>")
+
+
+def _reviews_block():
+    """후기 데이터를 별점 카드로 노출한다(스키마와 본문 일치용)."""
+    avg = RATING_VALUE
+    cnt = len(REVIEWS)
+    cards = []
+    for r in REVIEWS:
+        cards.append(
+            '<li class="rv-card">'
+            '<div class="rv-top">' + _stars(r["rating"])
+            + '<span class="rv-name">' + _html.escape(r["name"]) + '</span></div>'
+            '<p class="rv-text">' + _html.escape(r["text"]) + '</p>'
+            '<p class="rv-meta">'
+            + _html.escape(r["area"]) + ' · ' + _html.escape(r["theme"])
+            + ' · <time datetime="' + r["date"] + '">' + r["date"].replace("-", ". ") + '</time>'
+            + '</p></li>'
+        )
+    return (
+        '<section id="list">'
+        '<h2>이용 후기 모음</h2>'
+        '<div class="rv-summary"><span class="rv-score">' + avg + '</span>'
+        + _stars(round(float(avg)))
+        + '<span class="rv-count">이용자 후기 ' + str(cnt) + '건 · 평균 ' + avg + ' / 5</span></div>'
+        '<ul class="rv-grid">' + "".join(cards) + '</ul>'
+        '<p class="rv-note">후기는 이용이 확인된 예약 건에 한해 등록되며, 개인 식별 정보는 가린 뒤 게재합니다.</p>'
+        '</section>'
+    )
+
+
+_REVIEWS_BLOCK = _reviews_block()
 
 _CTA = f"""
 <section class="cta">
@@ -290,7 +329,7 @@ REVIEWS = {
     "breadcrumb": [("후기", None)],
     "body": """
 <p class="lead">실제 이용자의 후기를 모아 보여드리는 공간입니다. 후기는 이용 확인이 된 예약 건에 한해 등록됩니다.</p>
-
+""" + _REVIEWS_BLOCK + """
 <section id="all">
 <h2>후기 운영 원칙</h2>
 <p>후기는 광고 문구가 아니라 다음 이용자를 위한 정보라고 생각합니다. 그래서 세 가지 원칙을 지킵니다. 첫째, 실제 이용이 확인된 예약 건의 후기만 등록합니다. 작성 링크 자체가 이용 완료 안내와 함께 발송되므로 이용 없이 후기를 남길 방법이 없습니다. 둘째, 좋은 평가든 아쉬운 평가든 내용을 다듬거나 골라내지 않습니다. 별점이 낮은 후기를 지우기 시작하면 후기란 전체가 의미를 잃기 때문입니다. 아쉬운 평가에는 어떤 점을 어떻게 바꿨는지 답글로 남깁니다. 셋째, 이용자의 개인정보가 드러나는 정보는 등록 전에 가립니다. 등록된 후기는 이 페이지에서 최신순으로 보실 수 있으며, 사이트 오픈 초기에는 후기가 쌓이는 속도가 느릴 수 있는 점 양해 부탁드립니다.</p>

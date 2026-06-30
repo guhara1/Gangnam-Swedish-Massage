@@ -16,14 +16,14 @@
 
 ## 1. 가장 빠른 색인 경로 (요약)
 
-1. **배포** — Cloudflare Pages에 푸시 → `https://gangnam-swedish-massage.pages.dev/` 반영
+1. **배포** — Netlify에 배포 → `https://gangnam-swedish-massage.netlify.app/` 반영
 2. **사이트 소유확인 + 사이트맵 제출** (1회)
    - 구글 Search Console: 속성 등록 → `sitemap.xml` 제출
    - 네이버 서치어드바이저: 사이트 등록(메인페이지 메타태그 이미 삽입됨) → `sitemap.xml`·`rss.xml` 제출
 3. **글 올릴 때마다** — IndexNow로 즉시 통보 (Bing·네이버):
    ```bash
    python3 build.py
-   python3 scripts/indexnow_submit.py https://gangnam-swedish-massage.pages.dev/magazine/새글/
+   python3 scripts/indexnow_submit.py https://gangnam-swedish-massage.netlify.app/magazine/새글/
    ```
 4. **구글은 IndexNow 미참여** → 새 글은 Search Console "URL 검사 → 색인 요청"
    또는 `scripts/google_index_submit.py` (서비스 계정 필요).
@@ -37,7 +37,7 @@ IndexNow 참여 엔진은 키를 공유하므로 `api.indexnow.org` 한 곳에 �
 
 ```bash
 # 특정 URL만 (글 발행 시 권장)
-python3 scripts/indexnow_submit.py https://gangnam-swedish-massage.pages.dev/magazine/새글/
+python3 scripts/indexnow_submit.py https://gangnam-swedish-massage.netlify.app/magazine/새글/
 
 # 인자 없이 실행하면 sitemap.xml 전체 통보
 python3 scripts/indexnow_submit.py
@@ -54,7 +54,7 @@ JobPosting·BroadcastEvent용이지만 `URL_UPDATED` 통보는 일반 URL에도 
 ```bash
 pip install google-auth requests
 export GOOGLE_APPLICATION_CREDENTIALS=/path/service_account.json
-python3 scripts/google_index_submit.py https://gangnam-swedish-massage.pages.dev/magazine/새글/
+python3 scripts/google_index_submit.py https://gangnam-swedish-massage.netlify.app/magazine/새글/
 ```
 1회 준비: Cloud 프로젝트에서 Indexing API 활성화 → 서비스 계정 JSON 발급 →
 Search Console 속성에 서비스 계정 이메일을 **소유자**로 추가.

@@ -4,5 +4,11 @@ Allow: /
 User-agent: Yeti
 Allow: /
 
-Sitemap: https://gangnam-swedish-massage.pages.dev/sitemap.xml
-Sitemap: https://gangnam-swedish-massage.pages.dev/rss.xml
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+Sitemap: https://gangnam-swedish-massage.netlify.app/sitemap.xml
+Sitemap: https://gangnam-swedish-massage.netlify.app/rss.xml

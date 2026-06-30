@@ -14,7 +14,7 @@
 
 사용법:
   export GOOGLE_APPLICATION_CREDENTIALS=/path/service_account.json
-  python3 scripts/google_index_submit.py https://gangnam-swedish-massage.pages.dev/magazine/new-post/
+  python3 scripts/google_index_submit.py https://gangnam-swedish-massage.netlify.app/magazine/new-post/
   # 인자 없으면 sitemap.xml 전체 (일일 쿼터 200건 주의)
 """
 import os

@@ -1,10 +1,25 @@
 # 사이트 공통 설정
-# 배포 도메인 확정 후 BASE_URL 을 실제 도메인으로 변경하세요.
-BASE_URL = "https://gangnam-swedish-massage.pages.dev"
+# 배포 도메인(넷리파이)으로 확정.
+BASE_URL = "https://gangnam-swedish-massage.netlify.app"
 
 BRAND = "간다GO"
 PHONE = "0508-202-4719"
 PHONE_DISPLAY = "0508-202-4719"
+
+# 검색엔진 사이트 소유확인 코드
+NAVER_VERIFY = "6a1f4db7cccf19b5e7fb851543e61a73b6bebe3d"
+
+# 통합 평점 — Service/AggregateRating 스키마 공용. 후기 페이지 노출 후기 수와 일치시킨다.
+RATING_VALUE = "4.8"
+# REVIEWS 항목 수로 자동 계산되지만 import 순환을 피하려 정적으로 둔다(아래 REVIEWS와 일치).
+REVIEW_COUNT = "12"
+
+# 코스별 기본 요금(원) — Offer 스키마와 요금 블록 공용.
+OFFERS = [
+    ("60분 코스", "90000", "기본 컨디션·릴랙스 케어"),
+    ("90분 코스", "150000", "아로마 포함 추천 구성"),
+    ("120분 코스", "180000", "전신 집중 프리미엄 케어"),
+]
 
 # IndexNow 키 — Bing·네이버·Yandex 즉시 색인 통보용.
 # 빌드 시 루트에 "{INDEXNOW_KEY}.txt" 파일이 생성되며 그 안에 이 키가 들어간다.
