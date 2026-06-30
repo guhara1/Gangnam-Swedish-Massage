@@ -7,7 +7,7 @@ IndexNow는 참여 검색엔진이 키를 공유하므로, api.indexnow.org 한 
 
 사용법:
   # 새 글/수정 페이지만 즉시 통보 (글 올릴 때마다 권장)
-  python3 scripts/indexnow_submit.py https://gangnam-swedish-massage.pages.dev/magazine/new-post/
+  python3 scripts/indexnow_submit.py https://gangnam-swedish-massage.netlify.app/magazine/new-post/
 
   # URL 인자를 주지 않으면 sitemap.xml 전체를 통보
   python3 scripts/indexnow_submit.py
